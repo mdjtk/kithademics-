@@ -1,7 +1,5 @@
 
 import React, { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '../lib/firebase';
 
 interface LoginProps {
   onLogin: (name: string) => void;
@@ -19,16 +17,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result.user) {
-        onLogin(result.user.displayName || 'Student');
-      }
-    } catch (error) {
-      console.error("Login failed", error);
-    } finally {
+    // Simulate a brief delay for UX authenticity
+    setTimeout(() => {
       setIsLoading(false);
-    }
+      onLogin("Ammar Ahmed");
+    }, 1500);
   };
 
   const handleSubmit = (e: React.FormEvent) => {

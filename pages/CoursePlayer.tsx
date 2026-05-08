@@ -1,8 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Course, Lesson } from '../types';
-import { firebaseService } from '../services/firebaseService';
-import { auth } from '../lib/firebase';
 
 interface CoursePlayerProps {
   course: Course;
@@ -51,26 +49,14 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack, initialLess
     }
   };
 
-  // Handle Confirm Action with auto-redirect and Firebase sync
+  // Handle Confirm Action with auto-redirect
   const handleConfirmComplete = async () => {
     setIsAnimating(true);
     
-    const userId = auth.currentUser?.uid;
-    if (userId) {
-      // Get current list of completed IDs
-      const completedIds = course.lessons
-        .filter(l => l.isCompleted || l.id === activeLesson.id)
-        .map(l => l.id);
-      
-      try {
-        await firebaseService.updateCourseProgress(userId, course.id, completedIds);
-        onProgressUpdate(activeLesson.id, true);
-      } catch (error) {
-        console.error("Failed to sync progress", error);
-      }
-    }
-
+    // Simulate minor delay for UX feeling
     setTimeout(() => {
+      onProgressUpdate(activeLesson.id, true);
+      
       setActiveLesson(prev => ({
         ...prev,
         isCompleted: true
@@ -85,7 +71,7 @@ const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack, initialLess
           setIsPlaying(false);
         }, 800);
       }
-    }, 1500);
+    }, 1000);
   };
 
   // Find next lesson

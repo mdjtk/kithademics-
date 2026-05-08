@@ -1,9 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { firebaseService } from '../services/firebaseService';
 import { Course, Lesson, Enrollment, UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timestamp } from 'firebase/firestore';
 
 interface AdminPortalProps {
   courses: Course[];
@@ -14,14 +12,18 @@ interface AdminPortalProps {
 const AdminPortal: React.FC<AdminPortalProps> = ({ courses, onRefreshCourses, onBack }) => {
   const [activeTab, setActiveTab] = useState<'courses' | 'users' | 'spotlight'>('courses');
   const [editingCourse, setEditingCourse] = useState<Partial<Course> | null>(null);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([
+    { id: '1', displayName: 'Zaid Al-Harbi', email: 'zaid@example.com', membershipType: 'pro', enrollments: [] },
+    { id: '2', displayName: 'Layla Yusuf', email: 'layla@example.com', membershipType: 'free', enrollments: [] },
+    { id: '3', displayName: 'Omar Farooq', email: 'omar@example.com', membershipType: 'pro', enrollments: [] }
+  ]);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [spotlightForm, setSpotlightForm] = useState({
-    title: '',
-    quote: '',
-    author: '',
-    imageUrl: ''
+    title: 'The Path of Knowledge',
+    quote: 'He who treads a path in search of knowledge, Allah will make easy for him a path to Paradise.',
+    author: 'Prophet Muhammad (ﷺ)',
+    imageUrl: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?q=80&w=2070&auto=format&fit=crop'
   });
 
   const [lessonForm, setLessonForm] = useState<Partial<Lesson>>({
@@ -33,29 +35,22 @@ const AdminPortal: React.FC<AdminPortalProps> = ({ courses, onRefreshCourses, on
   });
 
   useEffect(() => {
-    if (activeTab === 'users') {
-      loadUsers();
-    }
-    if (activeTab === 'spotlight') {
-      firebaseService.getSpotlight().then(data => data && setSpotlightForm(data));
-    }
+    // UI Only: No external fetching needed
   }, [activeTab]);
 
   const loadUsers = async () => {
-    const data = await firebaseService.getAllUsers();
-    if (data) setUsers(data);
+    // Already in local state
   };
 
   const handleSaveCourse = async () => {
     if (!editingCourse?.title || !editingCourse?.id) return;
     setIsSaving(true);
-    try {
-      await firebaseService.saveCourse(editingCourse as Course);
-      setEditingCourse(null);
+    setTimeout(() => {
       onRefreshCourses();
-    } finally {
+      setEditingCourse(null);
       setIsSaving(false);
-    }
+      alert('Course details saved locally for this session.');
+    }, 800);
   };
 
   const handleAddLesson = () => {
@@ -86,29 +81,31 @@ const AdminPortal: React.FC<AdminPortalProps> = ({ courses, onRefreshCourses, on
 
   const handleSaveSpotlight = async () => {
     setIsSaving(true);
-    try {
-      await firebaseService.saveSpotlight(spotlightForm);
-      alert('Spotlight applied successfully!');
-    } finally {
+    setTimeout(() => {
+      alert('Spotlight applied successfully (Demo mode)!');
       setIsSaving(false);
-    }
+    }, 600);
   };
 
   const handleUpdateRole = async (userId: string, role: string) => {
-    await firebaseService.updateUserMembership(userId, role);
-    loadUsers();
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, membershipType: role } : u));
   };
 
   const handleSaveEnrollment = async (userId: string, courseId: string, enrollmentData: any) => {
-    await firebaseService.updateEnrollment(userId, courseId, enrollmentData);
-    loadUsers();
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        const enrollments = [...(u.enrollments || [])];
+        const idx = enrollments.findIndex(e => e.courseId === courseId);
+        if (idx > -1) enrollments[idx] = { ...enrollments[idx], ...enrollmentData };
+        else enrollments.push({ courseId, ...enrollmentData });
+        return { ...u, enrollments };
+      }
+      return u;
+    }));
   };
 
   const formatDate = (ts: any) => {
-    if (!ts) return 'N/A';
-    if (ts instanceof Timestamp) return ts.toDate().toLocaleDateString();
-    if (ts?.seconds) return new Date(ts.seconds * 1000).toLocaleDateString();
-    return new Date(ts).toLocaleDateString();
+    return "Dec 31, 2026"; // Mock date
   };
 
   return (
@@ -366,8 +363,8 @@ const AdminPortal: React.FC<AdminPortalProps> = ({ courses, onRefreshCourses, on
                                          <button 
                                            onClick={() => handleSaveEnrollment(u.id, course.id, {
                                              status: 'active',
-                                             enrolledAt: Timestamp.now(),
-                                             expiresAt: Timestamp.fromDate(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000))
+                                             enrolledAt: new Date(),
+                                             expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
                                            })}
                                            className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md active:scale-95"
                                          >

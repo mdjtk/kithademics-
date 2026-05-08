@@ -1,8 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { auth } from './lib/firebase';
-import { firebaseService } from './services/firebaseService';
 import Dashboard from './pages/Dashboard';
 import CourseDetail from './pages/CourseDetail';
 import CoursePlayer from './pages/CoursePlayer';
@@ -17,71 +14,29 @@ import { Course, UserProfile } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
 const App: React.FC = () => {
-  const [isAppLoading, setIsAppLoading] = useState(true);
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showLanding, setShowLanding] = useState(true);
+  const [isAppLoading, setIsAppLoading] = useState(false);
+  const [user, setUser] = useState<any>({
+    uid: 'demo-user-123',
+    displayName: 'Ammar Ahmed',
+    email: 'scholar@kithademics.com',
+    photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ammar'
+  });
+  const [isAdmin, setIsAdmin] = useState(true);
+  const [showLanding, setShowLanding] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | undefined>(undefined);
   const [recentlyWatchedId, setRecentlyWatchedId] = useState<string | null>(null);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [allProgress, setAllProgress] = useState<Record<string, string[]>>({});
-  const [spotlightData, setSpotlightData] = useState<any>(null);
+  const [spotlightData, setSpotlightData] = useState<any>({
+    title: "The Path of Knowledge",
+    quote: "He who treads a path in search of knowledge, Allah will make easy for him a path to Paradise.",
+    author: "Prophet Muhammad (ﷺ)",
+    imageUrl: "https://images.unsplash.com/photo-1542810634-71277d95dcbb?q=80&w=2070&auto=format&fit=crop"
+  });
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        setShowLanding(false);
-        
-        // Fetch courses first
-        const dbCourses = await firebaseService.getCourses();
-        if (dbCourses && dbCourses.length > 0) {
-          setCourses(dbCourses);
-        }
-
-        // Fetch spotlight
-        const spotlight = await firebaseService.getSpotlight();
-        if (spotlight) {
-          setSpotlightData(spotlight);
-        }
-
-        // Ensure user profile exists
-        const profile = await firebaseService.getUserProfile(firebaseUser.uid);
-        const isUserBootstrapAdmin = firebaseUser.email === 'midlajthonikkadavan01@gmail.com';
-        
-        if (profile) {
-          setIsAdmin(profile.membershipType === 'admin' || isUserBootstrapAdmin);
-          if (profile.recentlyWatchedCourseId) {
-            setRecentlyWatchedId(profile.recentlyWatchedCourseId);
-          }
-        } else {
-          setIsAdmin(isUserBootstrapAdmin);
-          await firebaseService.createUserProfile(
-            firebaseUser.uid, 
-            firebaseUser.email || '', 
-            firebaseUser.displayName || 'Student',
-            isUserBootstrapAdmin ? 'admin' : 'free'
-          );
-        }
-
-        // Fetch progress
-        const fetchedProgress = await firebaseService.getAllProgress(firebaseUser.uid);
-        if (fetchedProgress) {
-          setAllProgress(fetchedProgress);
-        }
-      } else {
-        setUser(null);
-        setShowLanding(true);
-      }
-      setIsAppLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Sync state when progress changes
+  // Sync state when progress changes (Local Only Logic)
   useEffect(() => {
     if (Object.keys(allProgress).length > 0) {
       setCourses(prevCourses => prevCourses.map(course => {
@@ -104,19 +59,15 @@ const App: React.FC = () => {
   }, [allProgress]);
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setRecentlyWatchedId(null);
-      setIsAdmin(false);
-      setActiveTab('home');
-    } catch (error) {
-      console.error("Logout error", error);
-    }
+    setUser(null);
+    setShowLanding(true);
+    setRecentlyWatchedId(null);
+    setIsAdmin(false);
+    setActiveTab('home');
   };
 
   const handleRefreshCourses = async () => {
-    const dbCourses = await firebaseService.getCourses();
-    if (dbCourses) setCourses(dbCourses);
+    // Local refresh (no-op for demo)
   };
 
   const handleCourseClick = (id: string) => {
@@ -252,24 +203,19 @@ const App: React.FC = () => {
   const ProfileView = () => {
     const myCourses = courses.filter(c => !c.isLocked);
     const completedLessonsCount = myCourses.reduce((acc, course) => acc + course.lessons.filter(l => l.isCompleted).length, 0);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [mainEnrollment, setMainEnrollment] = useState<any>(null);
+    
+    // Static demo profile
+    const profile = {
+      membershipType: 'admin',
+      studyTimeHours: 42,
+      streak: 12
+    };
 
-    useEffect(() => {
-      if (user) {
-        firebaseService.getUserProfile(user.uid).then(p => setProfile(p as any));
-        // Find the "Pro" or first locked course enrollment for expiry display
-        firebaseService.getAllUsers().then(users => {
-          const me = users?.find(u => u.id === user.uid);
-          if (me && me.enrollments?.length > 0) {
-            setMainEnrollment(me.enrollments[0]); // Just pick the first one for the demo/mvp
-          }
-        });
-      }
-    }, [user]);
+    const mainEnrollment = {
+      expiresAt: { seconds: 1800000000 } // Far in the future
+    };
 
-    const membershipLabel = profile?.membershipType === 'admin' ? 'System Administrator' : 
-                          profile?.membershipType === 'pro' ? 'Pro Academic' : 'Scholar (Free)';
+    const membershipLabel = "System Administrator (Demo)";
 
     return (
       <div className="min-h-full flex flex-col bg-slate-50">
