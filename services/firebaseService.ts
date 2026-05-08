@@ -49,12 +49,13 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 export const firebaseService = {
-  async createUserProfile(userId: string, email: string, displayName: string) {
+  async createUserProfile(userId: string, email: string, displayName: string, membershipType: string = 'free') {
     const path = `users/${userId}`;
     try {
       await setDoc(doc(db, path), {
         email,
         displayName,
+        membershipType,
         createdAt: serverTimestamp(),
         streak: 0,
         studyTimeHours: 0,
@@ -173,9 +174,13 @@ export const firebaseService = {
       const q = collection(db, path);
       const querySnapshot = await getDocs(q);
       const users: any[] = [];
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() });
-      });
+      for (const docSnap of querySnapshot.docs) {
+        const userData = docSnap.data();
+        // Fetch enrollments for each user
+        const enrollmentsSnapshot = await getDocs(collection(db, `${path}/${docSnap.id}/enrollments`));
+        const enrollments = enrollmentsSnapshot.docs.map(e => ({ courseId: e.id, ...e.data() }));
+        users.push({ id: docSnap.id, ...userData, enrollments });
+      }
       return users;
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, path);
@@ -200,6 +205,16 @@ export const firebaseService = {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  },
+
+  async deleteEnrollment(userId: string, courseId: string) {
+    const path = `users/${userId}/enrollments/${courseId}`;
+    try {
+      // For simplicity in rules and logic, we use a delete pattern if needed
+      // But usually just setting status to 'expired' or similar is safer
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
     }
   }
 };

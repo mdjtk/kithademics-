@@ -13,7 +13,7 @@ import Footer from './components/Footer';
 import LoadingScreen from './components/LoadingScreen';
 import AdminPortal from './pages/AdminPortal';
 import { COURSES as INITIAL_COURSES } from './constants';
-import { Course } from './types';
+import { Course, UserProfile } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
 const App: React.FC = () => {
@@ -49,16 +49,20 @@ const App: React.FC = () => {
 
         // Ensure user profile exists
         const profile = await firebaseService.getUserProfile(firebaseUser.uid);
+        const isUserBootstrapAdmin = firebaseUser.email === 'midlajthonikkadavan01@gmail.com';
+        
         if (profile) {
-          setIsAdmin(profile.membershipType === 'admin');
+          setIsAdmin(profile.membershipType === 'admin' || isUserBootstrapAdmin);
           if (profile.recentlyWatchedCourseId) {
             setRecentlyWatchedId(profile.recentlyWatchedCourseId);
           }
         } else {
+          setIsAdmin(isUserBootstrapAdmin);
           await firebaseService.createUserProfile(
             firebaseUser.uid, 
             firebaseUser.email || '', 
-            firebaseUser.displayName || 'Student'
+            firebaseUser.displayName || 'Student',
+            isUserBootstrapAdmin ? 'admin' : 'free'
           );
         }
 
@@ -248,122 +252,201 @@ const App: React.FC = () => {
   const ProfileView = () => {
     const myCourses = courses.filter(c => !c.isLocked);
     const completedLessonsCount = myCourses.reduce((acc, course) => acc + course.lessons.filter(l => l.isCompleted).length, 0);
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [mainEnrollment, setMainEnrollment] = useState<any>(null);
+
+    useEffect(() => {
+      if (user) {
+        firebaseService.getUserProfile(user.uid).then(p => setProfile(p as any));
+        // Find the "Pro" or first locked course enrollment for expiry display
+        firebaseService.getAllUsers().then(users => {
+          const me = users?.find(u => u.id === user.uid);
+          if (me && me.enrollments?.length > 0) {
+            setMainEnrollment(me.enrollments[0]); // Just pick the first one for the demo/mvp
+          }
+        });
+      }
+    }, [user]);
+
+    const membershipLabel = profile?.membershipType === 'admin' ? 'System Administrator' : 
+                          profile?.membershipType === 'pro' ? 'Pro Academic' : 'Scholar (Free)';
 
     return (
       <div className="min-h-full flex flex-col bg-slate-50">
-        <div className="bg-white p-6 pb-8 rounded-b-[2.5rem] shadow-sm mb-6 border-b border-emerald-900/5">
-          <div className="flex flex-col items-center space-y-4 pt-4">
-            <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center border-4 border-white shadow-lg overflow-hidden">
-              <img src={user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.displayName || 'Ahmed'}`} alt="Profile" className="w-full h-full object-cover" />
+        <div className="bg-white p-8 pb-10 rounded-b-[3.5rem] shadow-xl mb-8 border-b border-emerald-900/5 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-50 rounded-full -mr-20 -mt-20 opacity-50"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-50 rounded-full -ml-12 -mb-12 opacity-50"></div>
+          
+          <div className="flex flex-col items-center space-y-5 pt-4 relative z-10">
+            <div className="w-32 h-32 bg-white rounded-[2.5rem] flex items-center justify-center border-4 border-emerald-50 shadow-2xl overflow-hidden group">
+              <img src={user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.displayName || 'Ahmed'}`} alt="Profile" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
             </div>
             <div className="text-center">
-              <h2 className="serif-font text-2xl font-bold text-emerald-dark">{user?.displayName || 'Student'}</h2>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Student ID: #8294</p>
+              <h2 className="serif-font text-3xl font-black text-emerald-950 tracking-tighter">{user?.displayName || 'Student'}</h2>
+              <div className="flex items-center justify-center space-x-2 mt-2">
+                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${profile?.membershipType === 'free' ? 'bg-slate-100 text-slate-400' : 'bg-emerald-100 text-emerald-700'}`}>
+                  {membershipLabel}
+                </span>
+                <span className="text-slate-300 text-[9px] font-black uppercase tracking-widest">ID: #{user?.uid.slice(0, 4).toUpperCase()}</span>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mt-8">
-            <div className="bg-slate-50 p-3 rounded-2xl text-center border border-slate-100">
-              <i className="fi fi-rr-book-alt text-emerald-600 opacity-60 text-sm mb-1 block"></i>
-              <p className="text-xl font-bold text-emerald-700">{myCourses.length}</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Courses</p>
+          <div className="grid grid-cols-3 gap-4 mt-10 max-w-sm mx-auto">
+            <div className="bg-white p-4 rounded-3xl text-center shadow-lg shadow-emerald-950/5 border border-slate-50">
+              <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 mx-auto mb-2">
+                <i className="fi fi-rr-book-alt text-xs"></i>
+              </div>
+              <p className="text-xl font-black text-emerald-950 tracking-tighter">{myCourses.length}</p>
+              <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Library</p>
             </div>
-            <div className="bg-slate-50 p-3 rounded-2xl text-center border border-slate-100">
-              <i className="fi fi-rr-trophy text-emerald-600 opacity-60 text-sm mb-1 block"></i>
-              <p className="text-xl font-bold text-emerald-700">{completedLessonsCount}</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Lessons</p>
+            <div className="bg-white p-4 rounded-3xl text-center shadow-lg shadow-emerald-950/5 border border-slate-50">
+              <div className="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 mx-auto mb-2">
+                <i className="fi fi-rr-trophy text-xs"></i>
+              </div>
+              <p className="text-xl font-black text-emerald-950 tracking-tighter">{completedLessonsCount}</p>
+              <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Mastery</p>
             </div>
-            <div className="bg-slate-50 p-3 rounded-2xl text-center border border-slate-100">
-              <i className="fi fi-rr-time-watched text-emerald-600 opacity-60 text-sm mb-1 block"></i>
-              <p className="text-xl font-bold text-emerald-700">12h</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Hours</p>
+            <div className="bg-white p-4 rounded-3xl text-center shadow-lg shadow-emerald-950/5 border border-slate-50">
+              <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 mx-auto mb-2">
+                <i className="fi fi-rr-time-watched text-xs"></i>
+              </div>
+              <p className="text-xl font-black text-emerald-950 tracking-tighter">{profile?.studyTimeHours || 0}h</p>
+              <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Studied</p>
             </div>
           </div>
         </div>
 
-        <div className="px-6 space-y-8 pb-10 flex-1">
+        <div className="px-8 space-y-10 pb-20 flex-1">
           {/* Subscription Section */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-800 mb-4">My Subscription</h3>
-            <div className="bg-emerald-900 text-white p-6 rounded-[1.5rem] relative overflow-hidden shadow-lg shadow-emerald-900/20 group cursor-pointer">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 pointer-events-none"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full -ml-12 -mb-12 pointer-events-none"></div>
-              
-              <div className="relative z-10">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-widest mb-1">Current Plan</p>
-                        <h4 className="text-xl font-bold serif-font">Seeker of Knowledge</h4>
+          {(profile?.membershipType === 'pro' || profile?.membershipType === 'admin') && (
+            <motion.section 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 ml-2">Access Status</h3>
+              <div className="bg-emerald-950 text-white p-8 rounded-[3rem] relative overflow-hidden shadow-2xl shadow-emerald-950/40 group">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-800/20 rounded-full -mr-24 -mt-24 blur-2xl"></div>
+                
+                <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                          <p className="text-[9px] text-emerald-400 font-bold uppercase tracking-[0.4em] mb-2 text-glow">Premium Entitlement</p>
+                          <h4 className="text-2xl font-black serif-font italic italic tracking-tight">Kithademics Unlimited</h4>
+                      </div>
+                      <div className="bg-emerald-500/20 backdrop-blur-xl border border-emerald-500/30 px-4 py-1.5 rounded-full flex items-center space-x-2">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                        <span className="text-[10px] font-black text-emerald-100 uppercase tracking-widest">Active</span>
+                      </div>
                     </div>
-                    <span className="bg-emerald-500/20 backdrop-blur-sm border border-emerald-500/30 text-[10px] font-bold px-2.5 py-1 rounded text-emerald-100">ACTIVE</span>
-                  </div>
-                  <p className="text-xs text-emerald-200/70 mb-5 font-medium">Valid until December 31, 2025</p>
-                  <button className="w-full py-2.5 bg-white text-emerald-900 rounded-xl text-xs font-bold transition-all hover:bg-emerald-50 shadow-sm">Manage Subscription</button>
+                    <div className="flex items-center justify-between">
+                       <div className="space-y-px">
+                          <p className="text-[10px] text-emerald-200/50 font-bold uppercase tracking-widest">Protection Period</p>
+                          <p className="text-sm font-bold text-emerald-100">Expires: {mainEnrollment ? new Date(mainEnrollment.expiresAt.seconds * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : 'Dec 31, 2026'}</p>
+                       </div>
+                       <button className="bg-white/10 hover:bg-white/20 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 active:scale-95">Support Portal</button>
+                    </div>
+                </div>
               </div>
-            </div>
-          </section>
+            </motion.section>
+          )}
 
-          {/* My Courses Section */}
+          {/* My Learning Section */}
           <section>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-800">My Learning</h3>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">{myCourses.length}</span>
+            <div className="flex items-center justify-between mb-6 ml-2">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Institutional Records</h3>
+              <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">
+                Enrolled in {myCourses.length} Academy{myCourses.length !== 1 && 's'}
+              </span>
             </div>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-5">
               {myCourses.map(course => (
-                 <div key={course.id} onClick={() => handleCourseClick(course.id)} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center space-x-3 cursor-pointer group">
-                    <img src={course.thumbnail} alt={course.title} className="w-16 h-16 rounded-xl object-cover" />
-                    <div className="flex-1 min-w-0">
-                       <h4 className="text-xs font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-700 transition-colors">{course.title}</h4>
-                       <div className="flex items-center justify-between mt-2 mb-1">
-                          <span className="text-[9px] text-slate-400 font-bold">{course.progress}% Complete</span>
+                 <motion.div 
+                    key={course.id} 
+                    whileHover={{ scale: 1.02 }}
+                    onClick={() => handleCourseClick(course.id)} 
+                    className="bg-white p-4 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:shadow-emerald-950/5 transition-all flex items-center space-x-4 cursor-pointer group"
+                 >
+                    <div className="w-20 h-20 rounded-2xl overflow-hidden ring-2 ring-slate-50 shadow-inner">
+                      <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                    </div>
+                    <div className="flex-1 min-w-0 pr-2">
+                       <h4 className="text-sm font-black text-emerald-950 line-clamp-1 group-hover:text-emerald-700 transition-colors uppercase tracking-tight">{course.title}</h4>
+                       <div className="flex items-center justify-between mt-3 mb-1.5">
+                          <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{course.progress}% Intellectual Progress</span>
                        </div>
-                       <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                          <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000" style={{width: `${course.progress}%`}}></div>
+                       <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden shadow-inner border border-slate-200/50">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${course.progress}%` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                            className="bg-emerald-500 h-full rounded-full shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                          />
                        </div>
                     </div>
-                    <div className="pr-1">
-                       <i className="fi fi-rr-angle-small-right text-slate-300 group-hover:text-emerald-500 transition-colors text-lg"></i>
+                    <div className="pr-2">
+                       <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-all border border-slate-100">
+                         <i className="fi fi-rr-angle-small-right text-xl"></i>
+                       </div>
                     </div>
-                 </div>
+                 </motion.div>
               ))}
               {myCourses.length === 0 && (
-                 <div className="text-center py-8 bg-white rounded-2xl border border-slate-100 border-dashed">
-                    <p className="text-xs text-slate-400">No active courses yet.</p>
+                 <div className="text-center py-16 bg-white rounded-[3rem] border-2 border-slate-100 border-dashed group hover:border-emerald-200 transition-colors">
+                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-200 mx-auto mb-4 group-hover:bg-emerald-50 group-hover:text-emerald-300 transition-colors">
+                       <i className="fi fi-rr-document-signed text-2xl"></i>
+                    </div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Zero Academic Records Found</p>
+                    <button onClick={() => setActiveTab('courses')} className="mt-4 text-emerald-600 text-[10px] font-black uppercase underline tracking-widest">Apply for Enrollment</button>
                  </div>
               )}
             </div>
           </section>
 
-          {/* Settings Section */}
-          <div className="bg-white rounded-[2rem] border border-slate-50 shadow-sm overflow-hidden">
+          {/* System Access Section */}
+          <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl overflow-hidden mb-10 border-b-8 border-b-emerald-950">
             {isAdmin && (
-              <button onClick={() => setActiveTab('admin')} className="w-full px-6 py-5 flex items-center justify-between hover:bg-emerald-50 transition-colors border-b border-slate-50 group text-left">
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 transition-colors">
-                    <i className="fi fi-rr-rectangle-list text-lg"></i>
+              <button 
+                onClick={() => setActiveTab('admin')} 
+                className="w-full px-10 py-7 flex items-center justify-between hover:bg-emerald-50 transition-all border-b border-slate-50 group text-left active:bg-emerald-100"
+              >
+                <div className="flex items-center space-x-5">
+                  <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 transition-all group-hover:bg-emerald-950 group-hover:text-white shadow-inner group-hover:rotate-12">
+                    <i className="fi fi-rr-rectangle-list text-2xl"></i>
                   </div>
-                  <span className="text-sm font-bold text-emerald-900 transition-colors">Admin Console</span>
+                  <div>
+                    <span className="block text-base font-black text-emerald-950 tracking-tight uppercase italic italic">Control Dashboard</span>
+                    <span className="text-[9px] font-bold text-emerald-600/60 uppercase tracking-widest">Administrative Privileges Active</span>
+                  </div>
                 </div>
-                <i className="fi fi-rr-angle-small-right text-slate-300 group-hover:text-emerald-500 transition-colors text-lg"></i>
+                <i className="fi fi-rr-arrow-right text-emerald-200 group-hover:text-emerald-600 transition-all text-xl"></i>
               </button>
             )}
-            <button className="w-full px-6 py-5 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50 group text-left">
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
-                  <i className="fi fi-rr-settings text-lg"></i>
+            
+            <button className="w-full px-10 py-7 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50 group text-left">
+              <div className="flex items-center space-x-5">
+                <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shadow-inner">
+                  <i className="fi fi-rr-settings text-2xl"></i>
                 </div>
-                <span className="text-sm font-bold text-slate-700 group-hover:text-emerald-900 transition-colors">Account Settings</span>
+                <div>
+                  <span className="block text-base font-black text-slate-800 tracking-tight uppercase">Account Authority</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Parameters & Preferences</span>
+                </div>
               </div>
-              <i className="fi fi-rr-angle-small-right text-slate-300 group-hover:text-emerald-500 transition-colors text-lg"></i>
+              <i className="fi fi-rr-arrow-right text-slate-200 group-hover:text-emerald-600 transition-all text-xl"></i>
             </button>
-            <button onClick={handleLogout} className="w-full px-6 py-5 flex items-center justify-between hover:bg-rose-50 transition-colors group text-left">
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-400 group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors">
-                  <i className="fi fi-rr-exit text-lg"></i>
+
+            <button onClick={handleLogout} className="w-full px-10 py-7 flex items-center justify-between hover:bg-rose-50 transition-colors group text-left">
+              <div className="flex items-center space-x-5">
+                <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-400 group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors shadow-inner">
+                  <i className="fi fi-rr-exit text-2xl"></i>
                 </div>
-                <span className="text-sm font-bold text-rose-600">Sign Out</span>
+                <div>
+                  <span className="block text-base font-black text-rose-600 tracking-tight uppercase">Secure Sign Out</span>
+                  <span className="text-[9px] font-bold text-rose-400/60 uppercase tracking-widest">End Current Session</span>
+                </div>
               </div>
+              <i className="fi fi-rr-power text-rose-200 group-hover:text-rose-600 transition-all text-xl"></i>
             </button>
           </div>
         </div>

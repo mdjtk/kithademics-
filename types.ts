@@ -6,6 +6,7 @@ export interface Lesson {
   isCompleted: boolean;
   videoUrl: string;
   thumbnail?: string;
+  description?: string;
 }
 
 export interface Course {
@@ -20,6 +21,25 @@ export interface Course {
   price: string;
   isLocked: boolean;
   order?: number;
+}
+
+export interface Enrollment {
+  courseId: string;
+  enrolledAt: any;
+  expiresAt: any;
+  status: 'active' | 'expired' | 'pending';
+}
+
+export interface UserProfile {
+  id: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  membershipType: 'free' | 'pro' | 'admin';
+  createdAt: any;
+  streak: number;
+  studyTimeHours: number;
+  recentlyWatchedCourseId?: string;
 }
 
 export interface UserProgress {
